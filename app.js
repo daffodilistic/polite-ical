@@ -114,7 +114,7 @@ function buildIcs(items) {
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${uid}`);
     lines.push(`DTSTAMP:${nowStamp}`);
-    lines.push(`SUMMARY:${item.summary}`); // Used as event title in GCal
+    lines.push(`SUMMARY:${item.summary} - Session ${item.session}`); // Used as event title in GCal
     if (item.description) {
       let description = `DESCRIPTION:${item.description}`;
       let formatted_description = [];
@@ -132,8 +132,9 @@ function buildIcs(items) {
         } while (start_index < description.length);
       }
 
-      console.log(description);
-      console.log(formatted_description);
+      // console.log(description);
+      // console.log(formatted_description);
+
       lines.push(formatted_description.join(""));
     }
     // Default value for now (lat;long)
@@ -208,6 +209,10 @@ function buildRows(sheetName) {
   });
 
   rows = bodyRows;
+
+  // console.log("Raw XLS data:");
+  // console.log(rows);
+
   fillSelect(summarySelect, headers);
   fillSelect(descriptionSelect, headers);
   fillSelect(locationSelect, headers);
@@ -251,6 +256,8 @@ function createEvents() {
   }
 
   const items = rows.reduce((events, row, index) => {
+    // console.log("[createEvents]", row);
+
     const summary = row[summaryKey] || row[descriptionKey] || "Calendar Event";
     const description = row[descriptionKey]
       ? row[descriptionKey]
@@ -267,6 +274,7 @@ function createEvents() {
 
     const startDate = parseDateValue(startDateValue);
     if (!startDate) {
+      console.log("Invalid start date!", events);
       return events;
     }
 
@@ -301,12 +309,14 @@ function createEvents() {
     const startText = toIcsDateTime(start);
     const endText = toIcsDateTime(end);
     if (!startText || !endText) {
+      console.log("Invalid datetime conversions!", events);
       return events;
     }
 
     events.push({
       uid: `polite-${Date.now()}-${index}`,
       summary: summary.replace(/\r?\n/g, " "),
+      session: row["Session code"],
       description: description.replace(/\r?\n/g, "\\n"),
       location: location.replace(/\r?\n/g, " "),
       start: startText,
@@ -314,7 +324,8 @@ function createEvents() {
     });
     return events;
   }, []);
-
+  
+  console.log("[createEvents]", items);
   return items;
 }
 
@@ -360,6 +371,9 @@ sheetSelect.addEventListener("change", (event) => {
 convertButton.addEventListener("click", () => {
   try {
     const items = createEvents();
+
+    // console.log("[convertButton.addEventListener]", items);
+
     if (!items.length) {
       log("No valid events could be created from the selected rows.");
       return;
@@ -377,6 +391,7 @@ convertButton.addEventListener("click", () => {
     show(downloadArea);
     clearLog();
   } catch (error) {
+    // console.error(error);
     log(error.message);
   }
 });
