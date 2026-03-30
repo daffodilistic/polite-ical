@@ -88,12 +88,14 @@ function toIcsDateTime(value) {
     return null;
   }
   const utc = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
-  const iso = utc.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const iso = utc.toISOString()
+    .replace(/[-:]/g, "") // Remove delimiters/markers
+    .replace(/\.\d+Z$/, ""); // Remove milliseconds
   return iso;
 }
 
 function foldIcsLine(line) {
-  return line.replace(/(.{1,75})(?=.)/g, "$1\r\n ");
+  return line.replace(/(.{1,75})(?=.*)/g, "$1\r\n");
 }
 
 function buildIcs(items) {
@@ -118,13 +120,13 @@ function buildIcs(items) {
     if (item.location) {
       lines.push(`LOCATION:${item.location}`);
     }
-    lines.push(`DTSTART:${item.start}`);
-    lines.push(`DTEND:${item.end}`);
+    lines.push(`DTSTART;TZID=Asia/Singapore:${item.start}`);
+    lines.push(`DTEND;TZID=Asia/Singapore:${item.end}`);
     lines.push("END:VEVENT");
   });
 
   lines.push("END:VCALENDAR");
-  return lines.map(foldIcsLine).join("\r\n");
+  return lines.map(foldIcsLine).join("");
 }
 
 function fillSelect(select, options) {
