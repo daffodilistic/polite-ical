@@ -83,14 +83,15 @@ function parseDateValue(value) {
   return null;
 }
 
+// NOTE we are assuming all inputs to be SG time (GMT+8)
 function toIcsDateTime(value) {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
     return null;
   }
-  const utc = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
-  const iso = utc.toISOString()
+  const iso = value
+    .toISOString()
     .replace(/[-:]/g, "") // Remove delimiters/markers
-    .replace(/\.\d+Z$/, ""); // Remove milliseconds
+    .replace(/\.\d+Z$/, "Z"); // Remove milliseconds
   return iso;
 }
 
@@ -113,15 +114,38 @@ function buildIcs(items) {
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${uid}`);
     lines.push(`DTSTAMP:${nowStamp}`);
-    lines.push(`SUMMARY:${item.summary}`);
+    lines.push(`SUMMARY:${item.summary}`); // Used as event title in GCal
     if (item.description) {
-      lines.push(`DESCRIPTION:${item.description}`);
+      let description = `DESCRIPTION:${item.description}`;
+      let formatted_description = [];
+
+      const size = 75;
+      // Remove first 75 characters
+      formatted_description.push(description.slice(0, size));
+      // Check for extras
+      if (description.length > size) {
+        let start_index = size;
+        do {
+            output = " " + description.slice(start_index, start_index + size - 1);
+            formatted_description.push(output);
+            start_index += size - 1
+        } while (start_index < description.length);
+      }
+
+      console.log(description);
+      console.log(formatted_description);
+      lines.push(formatted_description.join(""));
     }
+    // Default value for now (lat;long)
+    // NOTE does not work in Gcal
+    // lines.push(`GEO:1.3097757;103.7775495`);
     if (item.location) {
-      lines.push(`LOCATION:${item.location}`);
+      lines.push(`LOCATION:Singapore Polytechnic`);
+    } else {
+      lines.push(`LOCATION:Singapore Polytechnic`);
     }
-    lines.push(`DTSTART;TZID=Asia/Singapore:${item.start}`);
-    lines.push(`DTEND;TZID=Asia/Singapore:${item.end}`);
+    lines.push(`DTSTART:${item.start}`);
+    lines.push(`DTEND:${item.end}`);
     lines.push("END:VEVENT");
   });
 
@@ -150,16 +174,15 @@ function setMappingDefaults() {
     return headers.find((value) => regex.test(value));
   };
 
-  summarySelect.value = guess("summary|title|event|subject|name") || "";
+  summarySelect.value = guess("summary|title|event|subject|name|module code") || "";
   descriptionSelect.value = guess("description|details|notes|comment") || "";
-  locationSelect.value = guess("location|venue|room|place") || "";
-  startDateSelect.value = guess("start.*date|date|day|attendance|log.*date") ||
-    "";
+  locationSelect.value = guess("location|venue|room|place|facility") || "";
+  startDateSelect.value = guess("start.*time|time.*in|in time|time") || "";
   startTimeSelect.value = guess("start.*time|time.*in|in time|time") || "";
-  endDateSelect.value = guess("end.*date|date|day") || startDateSelect.value ||
-    "";
-  endTimeSelect.value = guess("end.*time|time.*out|out time|finish|leave") ||
-    "";
+  endDateSelect.value =
+    guess("end.*time|time.*out|out time|finish|leave") || "";
+  endTimeSelect.value =
+    guess("end.*time|time.*out|out time|finish|leave") || "";
 }
 
 function buildRows(sheetName) {
@@ -203,10 +226,12 @@ function renderPreview(sheetName) {
   }
 
   const sampleRows = rows.slice(0, 5);
-  const preview = sampleRows.map((row, rowIndex) => {
-    const values = headers.map((header) => `${header}: ${row[header] || ""}`);
-    return `Row ${rowIndex + 1}\n${values.join("\n")}`;
-  }).join("\n\n");
+  const preview = sampleRows
+    .map((row, rowIndex) => {
+      const values = headers.map((header) => `${header}: ${row[header] || ""}`);
+      return `Row ${rowIndex + 1}\n${values.join("\n")}`;
+    })
+    .join("\n\n");
 
   previewText.textContent = preview;
   show(previewArea);
@@ -230,9 +255,9 @@ function createEvents() {
     const description = row[descriptionKey]
       ? row[descriptionKey]
       : Object.entries(row)
-        .map(([key, value]) => `${key}: ${value}`)
-        .filter((line) => line.trim() !== "")
-        .join("\n");
+          .map(([key, value]) => `${key}: ${value}`)
+          .filter((line) => line.trim() !== "")
+          .join("\n");
 
     const startDateValue = row[startDateKey];
     const startTimeValue = row[startTimeKey];
