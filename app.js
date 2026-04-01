@@ -50,37 +50,23 @@ function normalizeText(text) {
   return String(text || "").trim();
 }
 
-function parseDateValue(value) {
-  if (value instanceof Date && !Number.isNaN(value)) {
-    return value;
-  }
+// Naive implementation, but input is assumed to be machine-generated
+function parseDateTimeValue(dateString) {
+  const dateParts = dateString.split(" ")
+  const eventDate = dateParts[0].split("/")
+  const eventTime = dateParts[1].split(":")
 
-  const trimmed = normalizeText(value);
-  if (!trimmed) {
-    return null;
-  }
+  console.log("eventDate", eventDate)
+  console.log("eventTime", eventTime)
 
-  const date = new Date(trimmed);
-  if (!Number.isNaN(date.getTime())) {
-    return date;
-  }
-
-  const excelDate = Number(trimmed);
-  if (!Number.isNaN(excelDate)) {
-    const parsed = XLSX.SSF.parse_date_code(excelDate, { date1904: false });
-    if (parsed && parsed.y) {
-      return new Date(
-        parsed.y,
-        parsed.m - 1,
-        parsed.d,
-        parsed.H || 0,
-        parsed.M || 0,
-        parsed.S || 0,
-      );
-    }
-  }
-
-  return null;
+  return new Date(
+    Number(eventDate[2]), // Year
+    Number(eventDate[1]) - 1, // Month (0-based)
+    Number(eventDate[0]), // Day
+    Number(eventTime[0] || 0), // Hours
+    Number(eventTime[1] || 0), // Minutes
+    0, // Seconds
+  );
 }
 
 // NOTE we are assuming all inputs to be SG time (GMT+8)
@@ -243,6 +229,8 @@ function renderPreview(sheetName) {
 }
 
 function createEvents() {
+  // console.log("[createEvents]", rows);
+
   const startDateKey = startDateSelect.value;
   const startTimeKey = startTimeSelect.value;
   const endDateKey = endDateSelect.value || startDateKey;
@@ -255,8 +243,9 @@ function createEvents() {
     throw new Error("Start date column is required.");
   }
 
-  const items = rows.reduce((events, row, index) => {
-    // console.log("[createEvents]", row);
+  const items = rows.reduce((parsedEvents, row, index) => {
+    // console.log(row)
+    if (row["Module code"] == null) return null
 
     const summary = row[summaryKey] || row[descriptionKey] || "Calendar Event";
     const description = row[descriptionKey]
@@ -272,15 +261,15 @@ function createEvents() {
     const endTimeValue = row[endTimeKey];
     const location = row[locationKey] || "";
 
-    const startDate = parseDateValue(startDateValue);
-    if (!startDate) {
-      console.log("Invalid start date!", events);
-      return events;
-    }
+    const startDate = parseDateTimeValue(startDateValue);
+    // if (!startDate) {
+    //   console.log("Invalid start date!", row);
+    //   return row;
+    // }
 
     let start = startDate;
     if (startTimeKey && startTimeValue) {
-      const parsedTime = parseDateValue(`${startDateValue} ${startTimeValue}`);
+      const parsedTime = parseDateTimeValue(`${startDateValue} ${startTimeValue}`);
       if (parsedTime) {
         start = parsedTime;
       }
@@ -288,11 +277,11 @@ function createEvents() {
 
     let end = null;
     if (endTimeValue || endDateValue) {
-      const endDate = parseDateValue(endDateValue || startDateValue);
+      const endDate = parseDateTimeValue(endDateValue || startDateValue);
       if (endDate) {
         end = endDate;
         if (endTimeValue) {
-          const parsedEnd = parseDateValue(
+          const parsedEnd = parseDateTimeValue(
             `${endDateValue || startDateValue} ${endTimeValue}`,
           );
           if (parsedEnd) {
@@ -309,11 +298,10 @@ function createEvents() {
     const startText = toIcsDateTime(start);
     const endText = toIcsDateTime(end);
     if (!startText || !endText) {
-      console.log("Invalid datetime conversions!", events);
-      return events;
+      console.log("Invalid datetime conversions!", parsedEvents);
     }
 
-    events.push({
+    parsedEvents.push({
       uid: `polite-${Date.now()}-${index}`,
       summary: summary.replace(/\r?\n/g, " "),
       session: row["Session code"],
@@ -322,7 +310,7 @@ function createEvents() {
       start: startText,
       end: endText,
     });
-    return events;
+    return parsedEvents;
   }, []);
   
   console.log("[createEvents]", items);
