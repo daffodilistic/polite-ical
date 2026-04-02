@@ -12,7 +12,8 @@ const previewText = document.getElementById("previewText");
 const logArea = document.getElementById("logArea");
 const logOutput = document.getElementById("logOutput");
 
-const summarySelect = document.getElementById("summarySelect");
+const summaryInput = document.getElementById("summaryInput");
+const summaryPreview = document.getElementById("summaryPreview");
 const descriptionSelect = document.getElementById("descriptionSelect");
 const startDateSelect = document.getElementById("startDateSelect");
 const startTimeSelect = document.getElementById("startTimeSelect");
@@ -167,7 +168,7 @@ function setMappingDefaults() {
     return headers.find((value) => regex.test(value));
   };
 
-  summarySelect.value =
+  summaryInput.value =
     guess("summary|title|event|subject|name|module code") || "";
   descriptionSelect.value = guess("description|details|notes|comment") || "";
   locationSelect.value = guess("location|venue|room|place|facility") || "";
@@ -177,6 +178,29 @@ function setMappingDefaults() {
     guess("end.*time|time.*out|out time|finish|leave") || "";
   endTimeSelect.value =
     guess("end.*time|time.*out|out time|finish|leave") || "";
+  updateSummaryPreview();
+}
+
+function updateSummaryPreview() {
+  if (!rows.length) {
+    summaryPreview.textContent = "";
+    return;
+  }
+
+  const value = summaryInput.value.trim();
+  const isHeader = headers.includes(value);
+  if (value && isHeader) {
+    const sampleValues = rows
+      .slice(0, 3)
+      .map((row, index) => `Row ${index + 1}: ${row[value] || "(blank)"}`)
+      .join(" | ");
+    summaryPreview.textContent = `Preview from column "${value}": ${sampleValues}`;
+  } else if (value) {
+    summaryPreview.textContent = `Using fixed summary text: "${value}"`;
+  } else {
+    summaryPreview.textContent =
+      "Enter a summary column name or custom text to preview event titles.";
+  }
 }
 
 function buildRows(sheetName) {
@@ -206,7 +230,6 @@ function buildRows(sheetName) {
   // console.log("Raw XLS data:");
   // console.log(rows);
 
-  fillSelect(summarySelect, headers);
   fillSelect(descriptionSelect, headers);
   fillSelect(locationSelect, headers);
   fillSelect(startDateSelect, headers);
@@ -242,7 +265,7 @@ function createEvents() {
   const startTimeKey = startTimeSelect.value;
   const endDateKey = endDateSelect.value || startDateKey;
   const endTimeKey = endTimeSelect.value;
-  const summaryKey = summarySelect.value;
+  const summaryInputValue = summaryInput.value.trim();
   const descriptionKey = descriptionSelect.value;
   const locationKey = locationSelect.value;
 
@@ -250,12 +273,16 @@ function createEvents() {
     throw new Error("Start date column is required.");
   }
 
+  const useSummaryColumn = headers.includes(summaryInputValue);
+
   const items = rows.reduce((parsedEvents, row, index) => {
     // console.log("Parsing current row: ", row);
 
     if (row["Module code"] == false) return parsedEvents;
 
-    const summary = row[summaryKey] || row[descriptionKey] || "Calendar Event";
+    const summary = useSummaryColumn
+      ? row[summaryInputValue] || row[descriptionKey] || "Calendar Event"
+      : summaryInputValue || row[descriptionKey] || "Calendar Event";
     const description = row[descriptionKey]
       ? row[descriptionKey]
       : Object.entries(row)
@@ -354,6 +381,7 @@ fileInput.addEventListener("change", async (event) => {
     show(actions);
     buildRows(workbook.SheetNames[0]);
     renderPreview(workbook.SheetNames[0]);
+    updateSummaryPreview();
   } catch (error) {
     log(`Unable to parse XLSX file: ${error.message}`);
   }
@@ -365,6 +393,8 @@ sheetSelect.addEventListener("change", (event) => {
   renderPreview(sheetName);
   hide(downloadArea);
 });
+
+summaryInput.addEventListener("input", updateSummaryPreview);
 
 convertButton.addEventListener("click", () => {
   try {
