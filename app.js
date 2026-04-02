@@ -52,14 +52,16 @@ function normalizeText(text) {
 
 // Naive implementation, but input is assumed to be machine-generated
 function parseDateTimeValue(dateString) {
-  const dateParts = dateString.split(" ")
-  const eventDate = dateParts[0].split("/")
-  const eventTime = dateParts[1].split(":")
+  // console.log("Parsing date string: ", dateString);
 
-  console.log("eventDate", eventDate)
-  console.log("eventTime", eventTime)
+  const dateParts = dateString.split(" ");
+  const eventDate = dateParts[0].split("/");
+  const eventTime = dateParts[1].split(":");
 
-  return new Date(
+  // console.log("eventDate", eventDate)
+  // console.log("eventTime", eventTime)
+
+  parsedDateTime = new Date(
     Number(eventDate[2]), // Year
     Number(eventDate[1]) - 1, // Month (0-based)
     Number(eventDate[0]), // Day
@@ -67,6 +69,10 @@ function parseDateTimeValue(dateString) {
     Number(eventTime[1] || 0), // Minutes
     0, // Seconds
   );
+
+  // console.log("Parsed DateTime", parsedDateTime);
+
+  return parsedDateTime;
 }
 
 // NOTE we are assuming all inputs to be SG time (GMT+8)
@@ -112,9 +118,9 @@ function buildIcs(items) {
       if (description.length > size) {
         let start_index = size;
         do {
-            output = " " + description.slice(start_index, start_index + size - 1);
-            formatted_description.push(output);
-            start_index += size - 1
+          output = " " + description.slice(start_index, start_index + size - 1);
+          formatted_description.push(output);
+          start_index += size - 1;
         } while (start_index < description.length);
       }
 
@@ -161,7 +167,8 @@ function setMappingDefaults() {
     return headers.find((value) => regex.test(value));
   };
 
-  summarySelect.value = guess("summary|title|event|subject|name|module code") || "";
+  summarySelect.value =
+    guess("summary|title|event|subject|name|module code") || "";
   descriptionSelect.value = guess("description|details|notes|comment") || "";
   locationSelect.value = guess("location|venue|room|place|facility") || "";
   startDateSelect.value = guess("start.*time|time.*in|in time|time") || "";
@@ -244,8 +251,9 @@ function createEvents() {
   }
 
   const items = rows.reduce((parsedEvents, row, index) => {
-    // console.log(row)
-    if (row["Module code"] == null) return null
+    // console.log("Parsing current row: ", row);
+
+    if (row["Module code"] == false) return parsedEvents;
 
     const summary = row[summaryKey] || row[descriptionKey] || "Calendar Event";
     const description = row[descriptionKey]
@@ -269,7 +277,9 @@ function createEvents() {
 
     let start = startDate;
     if (startTimeKey && startTimeValue) {
-      const parsedTime = parseDateTimeValue(`${startDateValue} ${startTimeValue}`);
+      const parsedTime = parseDateTimeValue(
+        `${startDateValue} ${startTimeValue}`,
+      );
       if (parsedTime) {
         start = parsedTime;
       }
@@ -312,8 +322,8 @@ function createEvents() {
     });
     return parsedEvents;
   }, []);
-  
-  console.log("[createEvents]", items);
+
+  // console.log("Parsed rows", items);
   return items;
 }
 
@@ -379,7 +389,7 @@ convertButton.addEventListener("click", () => {
     show(downloadArea);
     clearLog();
   } catch (error) {
-    // console.error(error);
+    console.error(error);
     log(error.message);
   }
 });
