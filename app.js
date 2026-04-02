@@ -168,8 +168,7 @@ function setMappingDefaults() {
     return headers.find((value) => regex.test(value));
   };
 
-  summaryInput.value =
-    guess("summary|title|event|subject|name|module code") || "";
+  summaryInput.value = "{Module code} Learning to Read [{Session code}/{Total sessions}]";
   descriptionSelect.value = guess("description|details|notes|comment") || "";
   locationSelect.value = guess("location|venue|room|place|facility") || "";
   startDateSelect.value = guess("start.*time|time.*in|in time|time") || "";
@@ -181,6 +180,25 @@ function setMappingDefaults() {
   updateSummaryPreview();
 }
 
+function renderSummaryTemplate(template, row, totals = {}) {
+  if (!template) {
+    return "";
+  }
+
+  const value = template.trim();
+  if (headers.includes(value)) {
+    return row[value] == null ? "" : String(row[value]);
+  }
+
+  return value.replace(/\{([^}]+)\}/g, (match, token) => {
+    const key = token.trim();
+    if (/^total\s+sessions$/i.test(key)) {
+      return String(totals.totalSessions || 0);
+    }
+    return row[key] == null ? "" : String(row[key]);
+  });
+}
+
 function updateSummaryPreview() {
   if (!rows.length) {
     summaryPreview.textContent = "";
@@ -189,17 +207,20 @@ function updateSummaryPreview() {
 
   const value = summaryInput.value.trim();
   const isHeader = headers.includes(value);
+  const sampleSummary = renderSummaryTemplate(value, rows[0] || {}, {
+    totalSessions: rows.length,
+  });
+  const isTemplate = /\{[^}]+\}/.test(value);
+
   if (value && isHeader) {
-    const sampleValues = rows
-      .slice(0, 3)
-      .map((row, index) => `Row ${index + 1}: ${row[value] || "(blank)"}`)
-      .join(" | ");
-    summaryPreview.textContent = `Preview from column "${value}": ${sampleValues}`;
+    summaryPreview.innerHTML = `Using column "${value}" → <b>${sampleSummary || "(blank)"}</b>`;
+  } else if (value && isTemplate) {
+    summaryPreview.innerHTML = `Template preview → <b>${sampleSummary || "(blank)"}</b>`;
   } else if (value) {
-    summaryPreview.textContent = `Using fixed summary text: "${value}"`;
+    summaryPreview.innerHTML = `Using fixed summary text: <b>"${value}"</b>`;
   } else {
     summaryPreview.textContent =
-      "Enter a summary column name or custom text to preview event titles.";
+      "Enter a summary column name or template to preview event titles.";
   }
 }
 
@@ -273,16 +294,15 @@ function createEvents() {
     throw new Error("Start date column is required.");
   }
 
-  const useSummaryColumn = headers.includes(summaryInputValue);
-
   const items = rows.reduce((parsedEvents, row, index) => {
     // console.log("Parsing current row: ", row);
 
     if (row["Module code"] == false) return parsedEvents;
 
-    const summary = useSummaryColumn
-      ? row[summaryInputValue] || row[descriptionKey] || "Calendar Event"
-      : summaryInputValue || row[descriptionKey] || "Calendar Event";
+    const summaryFromTemplate = renderSummaryTemplate(summaryInputValue, row, {
+      totalSessions: rows.length,
+    });
+    const summary = summaryFromTemplate || row[descriptionKey] || "Calendar Event";
     const description = row[descriptionKey]
       ? row[descriptionKey]
       : Object.entries(row)

@@ -35,8 +35,12 @@
         <h2>Column Mapping</h2>
         <div class="grid">
           <div class="wide">
-            <label for="summaryInput">Summary (Event Title)</label>
-            <input id="summaryInput" type="text" placeholder="Enter event summary or column name" />
+            <label for="summaryInput">Event Title</label>
+            <input id="summaryInput" type="text" placeholder="Enter event summary or column name">
+            <p class="contrast small">Custom predefined templates:</p>
+            <ul class="contrast small">
+              <li><code>{Total sessions}</code> — total number of parsed sessions</li>
+            </ul>
             <p id="summaryPreview" class="contrast"></p>
           </div>
         </div>
