@@ -1,6 +1,4 @@
 const fileInput = document.getElementById("fileInput");
-const sheetSelect = document.getElementById("sheetSelect");
-const sheetControls = document.getElementById("sheetControls");
 const mappingControls = document.getElementById("mappingControls");
 const actions = document.getElementById("actions");
 const convertButton = document.getElementById("convertButton");
@@ -11,7 +9,7 @@ const previewArea = document.getElementById("previewArea");
 const previewText = document.getElementById("previewText");
 const logArea = document.getElementById("logArea");
 const logOutput = document.getElementById("logOutput");
-
+const templatesList = document.getElementById("templatesList");
 const summaryInput = document.getElementById("summaryInput");
 const summaryPreview = document.getElementById("summaryPreview");
 const descriptionSelect = document.getElementById("descriptionSelect");
@@ -22,8 +20,10 @@ const endTimeSelect = document.getElementById("endTimeSelect");
 const locationSelect = document.getElementById("locationSelect");
 
 let workbook = null;
-let rows = [];
-let headers = [];
+let dataRows = [];
+let allHeaders = [];
+let moduleHeaders = [];
+let moduleData = {};
 
 function show(element) {
   element.classList.remove("hidden");
@@ -165,10 +165,11 @@ function fillSelect(select, options) {
 function setMappingDefaults() {
   const guess = (pattern) => {
     const regex = new RegExp(pattern, "i");
-    return headers.find((value) => regex.test(value));
+    return allHeaders.find((value) => regex.test(value));
   };
 
-  summaryInput.value = "{Module code} Learning to Read [{Session code}/{Total sessions}]";
+  summaryInput.value =
+    "{Module code} {Module name} [{Session code}/{Total sessions}]";
   descriptionSelect.value = guess("description|details|notes|comment") || "";
   locationSelect.value = guess("location|venue|room|place|facility") || "";
   startDateSelect.value = guess("start.*time|time.*in|in time|time") || "";
@@ -186,29 +187,43 @@ function renderSummaryTemplate(template, row, totals = {}) {
   }
 
   const value = template.trim();
-  if (headers.includes(value)) {
+  console.log("Value to check ", value);
+  // 1-value check - quick return
+  if (allHeaders.includes(value)) {
+    console.log("Headers check ", String(row[value]));
     return row[value] == null ? "" : String(row[value]);
   }
-
+  
+  // This checks all templates
   return value.replace(/\{([^}]+)\}/g, (match, token) => {
     const key = token.trim();
+    // console.log("Key is:", key);
+    // Generated header check
     if (/^total\s+sessions$/i.test(key)) {
       return String(totals.totalSessions || 0);
     }
-    return row[key] == null ? "" : String(row[key]);
+    // Module header check
+    if (row[key] == null) {
+      if (moduleHeaders.includes(key)) {
+        return String(moduleData[key]);
+      }
+      return "";
+    } else {
+      return String(row[key]);
+    }
   });
 }
 
 function updateSummaryPreview() {
-  if (!rows.length) {
+  if (!dataRows.length) {
     summaryPreview.textContent = "";
     return;
   }
 
   const value = summaryInput.value.trim();
-  const isHeader = headers.includes(value);
-  const sampleSummary = renderSummaryTemplate(value, rows[0] || {}, {
-    totalSessions: rows.length,
+  const isHeader = allHeaders.includes(value);
+  const sampleSummary = renderSummaryTemplate(value, dataRows[0] || {}, {
+    totalSessions: dataRows.length,
   });
   const isTemplate = /\{[^}]+\}/.test(value);
 
@@ -224,53 +239,93 @@ function updateSummaryPreview() {
   }
 }
 
-function buildRows(sheetName) {
+function buildDataRows(sheetNames) {
   if (!workbook) {
-    rows = [];
+    dataRows = [];
     return;
   }
-
-  const sheet = workbook.Sheets[sheetName];
-  const data = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    raw: false,
-    defval: "",
+  // console.log("sheets", workbook.Sheets);
+  sheetNames.forEach((sheetName) => {
+    // console.log("currentSheet", sheetName);
+    const currentSheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(currentSheet, {
+      header: 1,
+      raw: false,
+      defval: "",
+    });
+    // console.log("data", data);
+    // Process header rows
+    const headerRow = data[0] || [];
+    let currentHeaders = [];
+    let currentRows = [];
+    currentHeaders = headerRow.map(normalizeText);
+    // console.log("newHeaders", newHeaders);
+    // Process body rows
+    const bodyRows = data.slice(1).map((row) => {
+      // console.log("row", row);
+      const cleanArray = [...new Set(row)];
+      // console.log("cleanArray", cleanArray);
+      if (cleanArray[0] == "") return null;
+      return currentHeaders.reduce((acc, header, index) => {
+        // console.log(`row[${index}], processing header ${header}`);
+        acc[header] = normalizeText(row[index]);
+        return acc;
+      }, {});
+    });
+    // console.log("bodyRows", bodyRows.filter(item => item != null));
+    currentRows = bodyRows.filter((item) => item != null);
+    
+    // console.log("sheetName",sheetName);
+    if (sheetName === "Module Details") {
+      allHeaders = allHeaders.concat(currentHeaders);
+      moduleHeaders = currentHeaders;
+      moduleData = currentRows[0];
+    } else {
+      allHeaders = allHeaders.concat(currentHeaders);
+      dataRows = dataRows.concat(currentRows);
+    }
   });
-  const headerRow = data[0] || [];
-  headers = headerRow.map(normalizeText).filter((value) => value !== "");
 
-  const bodyRows = data.slice(1).map((row) => {
-    return headers.reduce((acc, header, index) => {
-      acc[header] = normalizeText(row[index]);
-      return acc;
-    }, {});
-  });
+  allHeaders = [...new Set(allHeaders)];
+  // console.log("Available headers", allHeaders);
+  // console.log("Data rows", dataRows);
+  // console.log("Module headers", moduleHeaders);
+  // console.log("Module Data", moduleData);
 
-  rows = bodyRows;
-
-  // console.log("Raw XLS data:");
-  // console.log(rows);
-
-  fillSelect(descriptionSelect, headers);
-  fillSelect(locationSelect, headers);
-  fillSelect(startDateSelect, headers);
-  fillSelect(startTimeSelect, ["", ...headers]);
-  fillSelect(endDateSelect, headers);
-  fillSelect(endTimeSelect, ["", ...headers]);
+  fillSelect(descriptionSelect, allHeaders);
+  fillSelect(locationSelect, allHeaders);
+  fillSelect(startDateSelect, allHeaders);
+  fillSelect(startTimeSelect, ["", ...allHeaders]);
+  fillSelect(endDateSelect, allHeaders);
+  fillSelect(endTimeSelect, ["", ...allHeaders]);
   setMappingDefaults();
 }
 
+function updateTemplateList() {
+  // Add to templatesList with allHeaders as options
+  // templatesList.innerHTML = "";
+  allHeaders.forEach((header) => {
+    const li = document.createElement("li");
+    const code = document.createElement("code");
+    code.textContent = `{${header}}`;
+    li.appendChild(code);
+    templatesList.appendChild(li);
+  });
+}
+
 function renderPreview(sheetName) {
-  if (!rows.length) {
+  if (!dataRows.length) {
     previewText.textContent = "No rows found in the selected sheet.";
     show(previewArea);
     return;
   }
 
-  const sampleRows = rows.slice(0, 5);
+  const sampleRows = dataRows.slice(0, 5);
   const preview = sampleRows
     .map((row, rowIndex) => {
-      const values = headers.map((header) => `${header}: ${row[header] || ""}`);
+      const values = allHeaders.map(
+        (header) => `${header}: ${row[header] || ""}`,
+      );
       return `Row ${rowIndex + 1}\n${values.join("\n")}`;
     })
     .join("\n\n");
@@ -294,15 +349,16 @@ function createEvents() {
     throw new Error("Start date column is required.");
   }
 
-  const items = rows.reduce((parsedEvents, row, index) => {
+  const items = dataRows.reduce((parsedEvents, row, index) => {
     // console.log("Parsing current row: ", row);
 
     if (row["Module code"] == false) return parsedEvents;
 
     const summaryFromTemplate = renderSummaryTemplate(summaryInputValue, row, {
-      totalSessions: rows.length,
+      totalSessions: dataRows.length,
     });
-    const summary = summaryFromTemplate || row[descriptionKey] || "Calendar Event";
+    const summary =
+      summaryFromTemplate || row[descriptionKey] || "Calendar Event";
     const description = row[descriptionKey]
       ? row[descriptionKey]
       : Object.entries(row)
@@ -389,17 +445,12 @@ fileInput.addEventListener("change", async (event) => {
   try {
     const data = await file.arrayBuffer();
     workbook = XLSX.read(data, { type: "array" });
-    sheetSelect.innerHTML = "";
-    workbook.SheetNames.forEach((name) => {
-      const option = document.createElement("option");
-      option.value = name;
-      option.textContent = name;
-      sheetSelect.appendChild(option);
-    });
-    show(sheetControls);
+    // show(sheetControls);
     show(mappingControls);
     show(actions);
-    buildRows(workbook.SheetNames[0]);
+
+    buildDataRows(workbook.SheetNames);
+    updateTemplateList();
     renderPreview(workbook.SheetNames[0]);
     updateSummaryPreview();
   } catch (error) {
@@ -409,7 +460,7 @@ fileInput.addEventListener("change", async (event) => {
 
 sheetSelect.addEventListener("change", (event) => {
   const sheetName = event.target.value;
-  buildRows(sheetName);
+  buildDataRows(sheetName);
   renderPreview(sheetName);
   hide(downloadArea);
 });

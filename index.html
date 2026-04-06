@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Polite ICS Converter</title>
+  <title>POLITE STMS Calendar Generator</title>
   <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.*/css/pico.min.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -12,10 +12,19 @@
 <body>
   <main class="container">
     <header>
-      <h1>Polite ICS Converter</h1>
+      <h1>POLITE STMS Calendar Generator</h1>
       <p>
-        Load an XLSX workbook and export a calendar-ready <code>.ics</code>
+        Load an <code>.xlsx</code> file from POLITEMall and export a calendar-ready <code>.ics</code>
         file.
+      </p>
+      <h2>How to Use</h2>
+      <p>
+        <ol>
+          <li>Access STMS and look for your course (in the "My Course" section).</li>
+          <li>Under "Course details", click on the Semester/Term tab to view your modules.</li>
+          <li>After selecting the module you want to export, click on the "Download" button in the "Timetabling & attendance information" section to download the .xlsx file.</li>
+          <li>Use the file input below to load the downloaded .xlsx file.</li>
+        </ol>
       </p>
     </header>
 
@@ -37,10 +46,11 @@
           <div class="wide">
             <label for="summaryInput">Event Title</label>
             <input id="summaryInput" type="text" placeholder="Enter event summary or column name">
-            <p class="contrast small">Custom predefined templates:</p>
-            <ul class="contrast small">
-              <li><code>{Total sessions}</code> — total number of parsed sessions</li>
+            <small class="">Predefined templates:
+            <ul class="" id="templatesList">
+              <li><code>{Total sessions}</code> (Generated)</li>
             </ul>
+            </small>
             <p id="summaryPreview" class="contrast"></p>
           </div>
         </div>
