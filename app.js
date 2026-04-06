@@ -107,7 +107,7 @@ function buildIcs(items) {
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${uid}`);
     lines.push(`DTSTAMP:${nowStamp}`);
-    lines.push(`SUMMARY:${item.summary} - Session ${item.session}`); // Used as event title in GCal
+    lines.push(`SUMMARY:${item.summary}`); // Used as event title in GCal
     if (item.description) {
       let description = `DESCRIPTION:${item.description}`;
       let formatted_description = [];
